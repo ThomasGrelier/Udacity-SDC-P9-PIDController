@@ -1,4 +1,4 @@
-﻿# CarND-Controls-PID
+﻿# PID controller project
 [![Udacity - Self-Driving Car NanoDegree](https://s3.amazonaws.com/udacity-sdc/github/shield-carnd.svg)](http://www.udacity.com/drive)
 
 ## Overview
@@ -26,9 +26,8 @@ Three components are part of the PID controller:
 * Integral: running sum of previous errors. Enables to correct for small residual biases.
 * Derivative: provides a correction proportional to the rate of change of the error. Is useful to smooth oscillations provided by the two previous components.
 
-In my implementation, following the advices I found in this [document](http://georgegillard.com/documents/2-introduction-to-pid-controllers), I chose to reset the integral component term in two cases: 
-* when error was 0 (actually less than 0.001). Indeed when reaching zero error, integral term is non zero and this results in additional correction which is not needed anymore. 
-* when error is too big because in that case the integral term is going to become too big. I chose to set it to zero when error is bigger than **1.0**
+In my implementation, following the advices I found in this [document](http://georgegillard.com/documents/2-introduction-to-pid-controllers), I chose to reset the integral component term when error was 0 (actually less than 0.001). Indeed when reaching zero error, integral term is non zero and this results in additional correction which is not needed anymore. 
+It was also recommended to reset integral error when error is too big because in that case the integral term is going to become really too big. I tested it but it did not improve the performance.
 
 ### Controller tuning 
 Tuning a controller consists in finding the three coefficients (Kp, Ki, Kd) that will provide the best car behaviour. It is really problem specific and is not obvious!
@@ -38,13 +37,11 @@ This one does not require to be fine funed as we don't care if the car's speed o
 
 #### Steering angle
 The tuning of this controller is really tricky. There are several methods to tune a PID controller. See [this link ](https://en.wikipedia.org/wiki/PID_controller) for some examples.
-In class, we learnt a method called Twiddle. [Here](https://www.youtube.com/watch?v=2uQ2BSzDvXs) is a video where Sebastian Thrun details it. An implementation in Python can be found [there](https://martin-thoma.com/twiddle/). It is a method wich enables to find a local minimum of a function. In our case the function to minimize is the SSE (sum of squared error) of the cross track error. I chose to compute the SSE over 2500 time steps, with removal of the first 200 ones, because the loop is not stabilized yet. Time step depends on your computer and on the resolution of the simulator one chooses. With what I chose, the time step was approximatively 0.030 s, that is, it took one minute to perform a parameter configuration run. Overall the whole twiddle optimization may take several hours depending on the stopping criteria that is chosen.
+In class, we learnt a method called Twiddle. [Here](https://www.youtube.com/watch?v=2uQ2BSzDvXs) is a video where Sebastian Thrun details it. An implementation in Python can be found [there](https://martin-thoma.com/twiddle/). It is a method wich enables to find a local minimum of a function. In our case the function to minimize is the SSE (sum of squared error) of the cross track error. I chose to compute the SSE over 2000 time steps, with removal of the first 100 ones, because the loop is not stabilized yet. Time step depends on your computer and on the resolution of the simulator one chooses. With what I chose, the time step was approximatively 0.030 s, that is, it took one minute to perform a parameter configuration run. Overall the whole twiddle optimization may take several hours depending on the stopping criteria that is chosen. I chose as stopping criteria: sum of coefficicients increment less than 0.01.
 I implemented this method but it did not provide good results when starting from scratch (that is all three parameters set to 0). Indeed I did not end with a parameter configuration able to keep the car on the track.
 
-I thus decided to manually look for parameters. I used Ziegler-Nichols method (see description at the end of this [link](https://www.thorlabs.com/tutorials.cfm?tabID=5dfca308-d07e-46c9-baa0-4defc5c40c3e). I ended up with the following set of 3 parameters [Kp=0.03, Ki=0.012, Kd=0.011]. However the car could not pass the first turn with this configuration! I played a bit with these values to improve the car behaviour and have it pass the first turns. The final values I used as initial input for twiddle were [Kp=0.045, Ki=0.008, Kd=0.015].
-After a lot of iterations, Twiddle ended up with the following parameter configuration: [ , , ]
-
-A video of the car driving a lap can be found in the ./video repository.
+I thus decided to manually look for parameters. I used Ziegler-Nichols method (see description at the end of this [link](https://www.thorlabs.com/tutorials.cfm?tabID=5dfca308-d07e-46c9-baa0-4defc5c40c3e). I ended up with the following set of 3 parameters [Kp=0.03, Ki=0.012, Kd=0.011]. However the car could not pass the first turn with this configuration! I played a bit with these values to improve the car behaviour and have it pass the first turns. The final values I got were [Kp=0.045, Ki=0.008, Kd=0.015]. I used them as initial input for twiddle. After a lot of iterations, Twiddle ended up with the following parameter configuration: [0.3566, 0.0624, 0.1575] which is really far from the initial input parameters.
+With this configuration the car manages to drive round the track without putting a wheel outside of the road. However the car still zigzags.
 
 ## Repository content
 
@@ -57,7 +54,6 @@ The repository includes the following files:
  	 - json.hpp: JSON is used for communication with simulator
 
  - CMakeLists.txt: file that is used by CMAKE to build the project 
- - video.mp4: a video of the car driving a lap at 30 mph
 
 ## Dependencies
 

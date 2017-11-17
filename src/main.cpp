@@ -41,37 +41,47 @@ int main(int argc, char* argv[])
   // open a file
   ofstream outfile;
 
-  if (argc > 1){  // Open file and write first line
-    outfile.open(argv[1],ofstream::out);
+  // Initialize the pid variables for steer
+  double Kp_st, Ki_st, Kd_st;
+  if (argc >= 4){  // Read K values
+    Kp_st = atof(argv[1]);
+    Ki_st = atof(argv[2]);
+    Kd_st = atof(argv[3]);
+  }
+  else {
+    Kp_st = 0.03;
+    Ki_st = 0.0005;
+    Kd_st = 0.3;
+  }
+  int use_twiddle = 0;
+  if (argc == 6){  // Open file and write first line
+    use_twiddle = atoi(argv[4]);
+    outfile.open(argv[5],ofstream::out);
     outfile << "Kp" << ", ";
     outfile << "Ki" << ", ";
     outfile << "Kd" << ", ";
     outfile << "Error" << endl;
   }
 
-  // Initialize the pid variables for steer
-  double Kp_st, Ki_st, Kd_st;
-  Kp_st = 0.03;
-  Ki_st = 0.0;
-  Kd_st = 0.0;
   // Twiddle parameters
-  bool use_twiddle = false;  // use twiddle ?
-  int n_steps = 20;         // nb time steps for each trial
-  double best_err = 1e6;     // best error
-  double dKp = 0.1;          // Kp increment
-  double dKi = 0.1;          // Ki increment
-  double dKd = 0.1;          // Kd increment
-  double tol = 0.001;        // threshold on sum(dK) for stopping twiddle
+  int n_steps = 2000;         // nb time steps for each twiddle trial
+  int n_init_step_rem = 100;  // nb of initial steps to remove before starting to acc error
+  double dKp = 0.2;          // initial Kp increment
+  double dKi = 0.05;        // initial Ki increment
+  double dKd = 0.2;          // initial Kd increment
+  double tol = 0.005;        // threshold on sum(dK) for stopping twiddle
+
   Twiddle twiddle_st;
   if (use_twiddle) {
-    twiddle_st.Init(n_steps, best_err, dKp, dKi, dKd, tol);
+    cout << "Use TWIDDLE "<< endl;
+    twiddle_st.Init(n_steps, dKp, dKi, dKd, tol, n_init_step_rem);
   }
   PID pid_steer;
 
   pid_steer.Init(Kp_st,Ki_st,Kd_st,twiddle_st);
 
   // Initialize the pid variables for speed
-  double Kp_sp = 0.1;
+  double Kp_sp = 0.3;
   double Ki_sp = 0.0;
   double Kd_sp = 0.0;
   Twiddle twiddle_sp;  // no twiddle for speed
@@ -79,7 +89,8 @@ int main(int argc, char* argv[])
 
   pid_speed.Init(Kp_sp,Ki_sp,Kd_sp,twiddle_sp);
 
-  std::cout << "Kp: " << pid_steer.Kp_ << " Ki: " << pid_steer.Ki_ << " Kd: " << pid_steer.Kd_ << endl;
+  std::cout << "PID steer: Kp: " << pid_steer.Kp_ << " Ki: " << pid_steer.Ki_ << " Kd: " << pid_steer.Kd_ << endl;
+  std::cout << "PID speed: Kp: " << pid_speed.Kp_ << " Ki: " << pid_speed.Ki_ << " Kd: " << pid_speed.Kd_ << endl;
 
   h.onMessage([&pid_steer, &pid_speed, &outfile](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -98,8 +109,8 @@ int main(int argc, char* argv[])
           //double angle = std::stod(j[1]["steering_angle"].get<std::string>());
           double steer_value;
           double throttle;
-          double speed_cmd = 30;
-          double cte_thr = 3;       // cte threshold for simulator reset
+          double speed_cmd = 40;      // PID speed command
+          double cte_thr = 6.0;       // cte threshold for simulator reset
 
           /*
           * TODO: Calcuate steering value here, remember the steering value is
@@ -132,31 +143,38 @@ int main(int argc, char* argv[])
           // Compute cumulated squared error
           pid_speed.SSE(speed_error);
           // DEBUG
-          std::cout << pid_steer.iter_ << ". CTE: " << cte << " Steering Value: " << steer_value << " dt (s): " << (double)dt ;
-          std::cout << "/ Speed: " << speed << " Throttle Value: " << throttle << std::endl;
+          if (false) {
+            std::cout << pid_steer.iter_ << ". CTE: " << cte << " Steering Value: " << steer_value << " dt (s): " << (double)dt ;
+            std::cout << "/ Speed: " << speed << " Throttle Value: " << throttle << std::endl;
+          }
           json msgJson;
 
           // reset simulator is CTE is greater than threshold
           bool flag_reset_oot = fabs(cte)>cte_thr;
-
+          if (flag_reset_oot){
+             cout << "cte overshoot -> reset simulator"<< endl;
+          }
           // APPLY TWIDDLE ON STEER PID CONTROLLER
           // returns a bool to reset simulator after n_steps time steps
           // automatic stop of twiddle when tolerance criteria is reached
-          bool flag_reset_twid = false;
+          bool flag_reset_twid;
           if (pid_steer.twiddle_.is_used_) {
             flag_reset_twid =  pid_steer.Process_twiddle(flag_reset_oot);
           }
+          else {
+            flag_reset_twid = false;
+          }
+          bool flat_reset_sim =  flag_reset_oot || flag_reset_twid;
 
-          bool flat_reset_sim =  flag_reset_oot | flag_reset_twid;
-          if (~flat_reset_sim){  // NO RESET
-            cout << "Reset simulator" << endl;
+          if (flat_reset_sim==false){  // NO RESET
             msgJson["steering_angle"] = steer_value;
             msgJson["throttle"] = throttle;
             auto msg = "42[\"steer\"," + msgJson.dump() + "]";
             ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
           }
-          else {  // RESET
+          else if (flat_reset_sim==true) {  // RESET
             // copy results
+            //cout << "Reset simulator" << endl;
             if (outfile.is_open()){
               outfile << fixed << setprecision(3) << pid_steer.Kp_ << ", ";
               outfile << fixed << setprecision(3) << pid_steer.Ki_ << ", ";
@@ -166,6 +184,7 @@ int main(int argc, char* argv[])
             //reinitialize controller
             pid_steer.is_initialized_ = false;
             pid_speed.is_initialized_ = false;
+            //cout << "mark" << endl;
             // reset simulator
             std::string msg = "42[\"reset\",{}]";
             ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
@@ -195,7 +214,7 @@ int main(int argc, char* argv[])
   });
 
   h.onConnection([&h](uWS::WebSocket<uWS::SERVER> ws, uWS::HttpRequest req) {
-    std::cout << "Connected!!!" << std::endl;
+    //std::cout << "Connected!!!" << std::endl;
   });
 
   h.onDisconnection([&h](uWS::WebSocket<uWS::SERVER> ws, int code, char *message, size_t length) {

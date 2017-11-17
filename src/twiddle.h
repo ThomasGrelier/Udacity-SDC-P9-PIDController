@@ -13,6 +13,7 @@ public:
   double dKi_;          // Ki increment
   double dKd_;          // Kd increment
   double tol_;          // for stopping twiddle
+  int n_init_step_rem_; // nb of initial steps to remove before starting to acc error
   std::vector<double> dK_;    // concatenation of dK
   int index_K_;         // index of vector K to be used
   int index_step_;      // step in the twiddle algorithm
@@ -22,7 +23,7 @@ public:
   // Destructor.
   virtual ~Twiddle();
   //Init twiddle.
-  void Init(int n_steps, double best_err, double dKp, double dKi, double dKd, double tol);
+  void Init(int n_steps, double dKp, double dKi, double dKd, double tol, int n_init_step_rem);
 };
 
 
