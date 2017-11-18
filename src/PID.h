@@ -40,7 +40,9 @@ public:
   // Init
   void Init(double Kp, double Ki, double Kd, Twiddle twiddle);
   // Update the PID error given cross track error and time_step
-  double UpdateError(double cte, double dt);
+  void UpdateError(double cte, double dt);
+  // returns total error
+  double TotalError();
   //Compute sum of  squared cte
   void SSE(double cte);
   //Perform twiddle - Returns a boolean indicating to reset simulator

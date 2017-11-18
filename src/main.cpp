@@ -49,9 +49,9 @@ int main(int argc, char* argv[])
     Kd_st = atof(argv[3]);
   }
   else {
-    Kp_st = 0.03;
-    Ki_st = 0.0005;
-    Kd_st = 0.3;
+    Kp_st = 0.3566;
+    Ki_st = 0.0624;
+    Kd_st = 0.1575;
   }
   int use_twiddle = 0;
   if (argc == 6){  // Open file and write first line
@@ -126,7 +126,8 @@ int main(int argc, char* argv[])
           pid_steer.msSinceEpochPrev_ = msSinceEpoch;
 
           // compute steering value using PID controller
-          steer_value = pid_steer.UpdateError(cte, dt);
+          pid_steer.UpdateError(cte, dt);
+          steer_value = pid_steer.TotalError();
           // keep it in range [-1;1]
           if (steer_value>1) {
             steer_value = 1;
@@ -138,7 +139,9 @@ int main(int argc, char* argv[])
 
           // compute throttle value using PID controller
           double speed_error = speed - speed_cmd;
-          throttle = pid_speed.UpdateError(speed_error, dt);
+          pid_speed.UpdateError(speed_error, dt);
+          throttle = pid_speed.TotalError();
+
           //throttle = 0.3;
           // Compute cumulated squared error
           pid_speed.SSE(speed_error);

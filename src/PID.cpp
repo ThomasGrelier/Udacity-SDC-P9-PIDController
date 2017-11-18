@@ -26,7 +26,7 @@ void PID::Init(double Kp, double Ki, double Kd, Twiddle twiddle) {
     K_.push_back(Kd_);
 }
 
-double PID::UpdateError(double cte, double dt) {
+void PID::UpdateError(double cte, double dt) {
   if (is_initialized_ == false) {
     //cout << "PID initialized" << endl;
     iter_ = 0;
@@ -49,6 +49,11 @@ double PID::UpdateError(double cte, double dt) {
   }
   prev_cte_ = cte;
   iter_ += 1;
+  //double error = -Kp_*p_error_-Ki_*i_error_-Kd_*d_error_;
+  //return error;
+}
+
+double PID::TotalError() {
   double error = -Kp_*p_error_-Ki_*i_error_-Kd_*d_error_;
   return error;
 }
